@@ -45,6 +45,13 @@ public class PiledConfig {
 	 * Another server class name. By default, this is PiledSSLServer
 	 */
 	public static String extraServer = "im.webuzz.piled.PiledSSLServer";
+
+	/**
+	 * Define configuration manager class name. By default, this is Simple Config.
+	 * The class should has at least 3 methods:
+	 * #initialize(); #initialize(String); #registerClassListener(Class);
+	 */
+	public static String configClassName = "im.webuzz.config.Config";
 	
 //	/**
 //	 * All existed configuration class names.

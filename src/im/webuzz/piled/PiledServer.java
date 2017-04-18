@@ -7,7 +7,7 @@
 
 package im.webuzz.piled;
 
-import im.webuzz.config.Config;
+//import im.webuzz.config.Config;
 import im.webuzz.pilet.HttpConfig;
 import im.webuzz.pilet.HttpLoggingConfig;
 import im.webuzz.pilet.MIMEConfig;
@@ -180,6 +180,32 @@ public class PiledServer extends PiledAbstractServer {
 	}
 
 	public static void main(String[] args) {
+		try {
+			Class<?> clazz = Class.forName(PiledConfig.configClassName);
+			if (clazz != null) {
+				Method initMethod = clazz.getMethod("initialize", args != null && args.length > 0 ? String.class : Void.class);
+				if (initMethod != null && (initMethod.getModifiers() & Modifier.STATIC) != 0) {
+					if (args != null && args.length > 0) {
+						initMethod.invoke(clazz, args[0]);
+					} else {
+						initMethod.invoke(clazz);
+					}
+				}
+				Method registerMethod = clazz.getMethod("registerUpdatingListener", Class.class);
+				if (registerMethod != null && (registerMethod.getModifiers() & Modifier.STATIC) != 0) {
+					registerMethod.invoke(clazz, HttpConfig.class);
+					registerMethod.invoke(clazz, HttpLoggingConfig.class);
+					registerMethod.invoke(clazz, MIMEConfig.class);
+					registerMethod.invoke(clazz, PiledConfig.class);
+				}
+			}
+		} catch (ClassNotFoundException e) {
+			System.out.println("[WARN]: Class " + PiledConfig.configClassName + " is not found. Server may not be configurable.");
+		} catch (Throwable e) {
+			e.printStackTrace();
+			System.out.println("[WARN]: There are errors. Server may not be configurable.");
+		}
+		/*
 		if (args != null && args.length > 0) {
 			Config.initialize(args[0]);
 		} else {
@@ -189,6 +215,7 @@ public class PiledServer extends PiledAbstractServer {
 		Config.registerUpdatingListener(HttpLoggingConfig.class);
 		Config.registerUpdatingListener(MIMEConfig.class);
 		Config.registerUpdatingListener(PiledConfig.class);
+		// */
 				
 		int workerCount = PiledConfig.httpWorkers;
 		if (workerCount <= 0) {

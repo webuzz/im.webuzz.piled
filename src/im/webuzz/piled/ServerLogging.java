@@ -14,10 +14,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-import im.webuzz.config.Config;
+//import im.webuzz.config.Config;
 import im.webuzz.pilet.IPiledServer;
 import im.webuzz.pilet.IPiledWrapping;
 
@@ -46,7 +48,21 @@ public class ServerLogging implements IPiledWrapping {
 		if (initialized) {
 			return;
 		}
-		Config.registerUpdatingListener(LoggingConfig.class);
+		try {
+			Class<?> clazz = Class.forName(PiledConfig.configClassName);
+			if (clazz != null) {
+				Method registerMethod = clazz.getMethod("registerUpdatingListener", Class.class);
+				if (registerMethod != null && (registerMethod.getModifiers() & Modifier.STATIC) != 0) {
+					registerMethod.invoke(clazz, LoggingConfig.class);
+				}
+			}
+		} catch (ClassNotFoundException e) {
+			System.out.println("[WARN]: Class " + PiledConfig.configClassName + " is not found. LoggingConfig may not be configurable.");
+		} catch (Throwable e) {
+			//e.printStackTrace();
+			System.out.println("[WARN]: There are errors. LoggingConfig may not be configurable.");
+		}
+		//Config.registerUpdatingListener(LoggingConfig.class);
 		
 		logPath = LoggingConfig.logPath;
 		if (logPath != null) {
