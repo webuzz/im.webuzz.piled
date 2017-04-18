@@ -569,7 +569,7 @@ public class HttpWorker implements Runnable, IPiledWorker {
 		piletResponse(req, rsp);
 	}
 	
-	private void makeResponse(HttpRequest request, HttpResponse response, boolean checkingProxyPilet) {
+	protected void makeResponse(HttpRequest request, HttpResponse response, boolean checkingProxyPilet) {
 		String proxyPilet = PiledConfig.proxyPilet;
 		if (checkingProxyPilet && proxyPilet != null) {
 			if (server.proxyPilet == null) {
