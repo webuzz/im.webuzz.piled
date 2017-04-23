@@ -296,12 +296,14 @@ public class HttpWorker implements Runnable, IPiledWorker {
 				request.created = System.currentTimeMillis();
 				newReq = request;
 			} else {
+				// No needs to find the last pipelining node				
 				if (request.fullRequest) {
-					if (!request.done) { // not yet finish responsing, HTTP pipelining
+					if (!request.done) { // not yet finish responding, HTTP pipelining
 						HttpRequest next = makeHttpRequest();
-						if (request.prev == null) {
+						Object mutex = request.mutex;
+						if (request.prev == null && mutex == null) {
 							// root HTTP request
-							request.mutex = new Object();
+							mutex = request.mutex = new Object();
 						}
 						
 						next.userAgent = request.userAgent;
@@ -309,11 +311,15 @@ public class HttpWorker implements Runnable, IPiledWorker {
 						next.created = System.currentTimeMillis();
 						next.socket = request.socket;
 						
-						synchronized (request.mutex) {
+						if (mutex == null) {
+							mutex = new Object();
+						}
+						synchronized (mutex) {
 							if (!request.done) {
-								next.mutex = request.mutex;
+								next.mutex = mutex;
 								next.prev = request;
 								request.next = next;
+								request.mutex = mutex;
 								
 								request = next;
 								newReq = next; // newReq will replace old cached request
@@ -394,9 +400,10 @@ public class HttpWorker implements Runnable, IPiledWorker {
 				int pipelineRequests = 0;
 				do {
 					next = makeHttpRequest();
-					if (req.prev == null) {
+					Object mutex = req.mutex;
+					if (req.prev == null && mutex == null) {
 						// root HTTP request
-						req.mutex = new Object();
+						mutex = req.mutex = new Object();
 					}
 
 					next.userAgent = req.userAgent;
@@ -409,9 +416,10 @@ public class HttpWorker implements Runnable, IPiledWorker {
 					req.pending = null;
 					req.dataLength = 0;
 
-					synchronized (req.mutex) {
+					synchronized (mutex) {
 						if (!req.done) {
-							next.mutex = req.mutex;
+							req.mutex = mutex;
+							next.mutex = mutex;
 							next.prev = req;
 							req.next = next;
 						} else {
