@@ -183,7 +183,7 @@ public class PiledServer extends PiledAbstractServer {
 		try {
 			Class<?> clazz = Class.forName(PiledConfig.configClassName);
 			if (clazz != null) {
-				Method initMethod = clazz.getMethod("initialize", args != null && args.length > 0 ? String.class : Void.class);
+				Method initMethod = args != null && args.length > 0 ? clazz.getMethod("initialize", String.class) : clazz.getMethod("initialize");
 				if (initMethod != null && (initMethod.getModifiers() & Modifier.STATIC) != 0) {
 					if (args != null && args.length > 0) {
 						initMethod.invoke(clazz, args[0]);
