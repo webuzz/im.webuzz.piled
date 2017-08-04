@@ -7,19 +7,6 @@
 
 package im.webuzz.piled;
 
-import im.webuzz.pilet.HttpConfig;
-import im.webuzz.pilet.HttpLoggingUtils;
-import im.webuzz.pilet.HttpQuickResponse;
-import im.webuzz.pilet.HttpRequest;
-import im.webuzz.pilet.HttpResponse;
-import im.webuzz.pilet.HttpWorkerUtils;
-import im.webuzz.pilet.ICloneablePilet;
-import im.webuzz.pilet.IFilter;
-import im.webuzz.pilet.IPiledServer;
-import im.webuzz.pilet.IPiledWorker;
-import im.webuzz.pilet.IPilet;
-import im.webuzz.pilet.IRequestMonitor;
-
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
@@ -32,6 +19,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
+
+import im.webuzz.pilet.HttpConfig;
+import im.webuzz.pilet.HttpLoggingUtils;
+import im.webuzz.pilet.HttpQuickResponse;
+import im.webuzz.pilet.HttpRequest;
+import im.webuzz.pilet.HttpResponse;
+import im.webuzz.pilet.HttpWorkerUtils;
+import im.webuzz.pilet.ICloneablePilet;
+import im.webuzz.pilet.IFilter;
+import im.webuzz.pilet.IPiledServer;
+import im.webuzz.pilet.IPiledWorker;
+import im.webuzz.pilet.IPilet;
+import im.webuzz.pilet.IRequestMonitor;
 
 /**
  * HTTP worker to deal all HTTP connections.
@@ -296,6 +296,29 @@ public class HttpWorker implements Runnable, IPiledWorker {
 				request.created = System.currentTimeMillis();
 				newReq = request;
 			} else {
+				// Find the last pipelining node. We NEED to find the last pipelining node
+				Object reqMutex = request.mutex;
+				boolean alreadyDone = true;
+				if (reqMutex != null) {
+					synchronized (reqMutex) {
+						while (request.next != null) {
+							alreadyDone = request.done && request.fullRequest;
+							if (alreadyDone) {
+								newReq = request.next; // newReq will replace old cached request
+							}
+							request = request.next;
+						}
+					}
+				} else {
+					while (request.next != null) {
+						alreadyDone = request.done && request.fullRequest;
+						if (alreadyDone) {
+							newReq = request.next; // newReq will replace old cached request
+						}
+						request = request.next;
+					}
+				}
+				
 				// No needs to find the last pipelining node				
 				if (request.fullRequest) {
 					if (!request.done) { // not yet finish responding, HTTP pipelining
@@ -324,15 +347,15 @@ public class HttpWorker implements Runnable, IPiledWorker {
 								request = next;
 								newReq = next; // newReq will replace old cached request
 							} else {
-								if (request.prev == null) {
-									request.mutex = null; // release mutex
-								}
+								//if (request.prev == null) {
+								//	request.mutex = null; // release mutex
+								//}
 								// normal HTTP request: Request->Response->Request->Response->...
 								// reset request as a new request
 								request.reset();
 							}
 						}
-					} else {
+					} else { // already done
 						// normal HTTP request: Request->Response->Request->Response->...
 						// reset request as a new request
 						request.reset();
@@ -389,6 +412,25 @@ public class HttpWorker implements Runnable, IPiledWorker {
 					requests.put(dataEvent.socket, newReq);
 				}
 				continue;
+			} else if (resp.code / 100 == 4) { // Error
+				HttpResponse response = new HttpResponse();
+				response.socket = dataEvent.socket;
+				response.worker = dataEvent.worker;
+				String responseText = "Bad Request";
+				switch (resp.code) {
+				case 400:
+					responseText = "Bad Request";
+					break;
+				case 413:
+					responseText = "Request Entity Too Large";
+					break;
+
+				default:
+					break;
+				}
+				HttpWorkerUtils.sendXXXResponse(request, response, resp.code + " " + responseText, null, true);
+				HttpLoggingUtils.addLogging(request.host, request, 400, 0);
+				continue;
 			}
 			request.fullRequest = true;
 			request.created = System.currentTimeMillis();
@@ -416,16 +458,19 @@ public class HttpWorker implements Runnable, IPiledWorker {
 					req.pending = null;
 					req.dataLength = 0;
 
+					if (mutex == null) {
+						mutex = new Object();
+					}
 					synchronized (mutex) {
 						if (!req.done) {
 							req.mutex = mutex;
 							next.mutex = mutex;
 							next.prev = req;
 							req.next = next;
-						} else {
-							if (req.prev == null) {
-								req.mutex = null;
-							}
+						//} else {
+							//if (req.prev == null) {
+							//	req.mutex = null;
+							//}
 						}
 					}
 					
@@ -504,6 +549,11 @@ public class HttpWorker implements Runnable, IPiledWorker {
 	}
 	
 	private boolean passThroughFilters(HttpRequest request, HttpResponse response) {
+		if (PiledConfig.support256BytesHeart && ("/heart".equals(request.url) || "/love".equals(request.url) || "/<3".equals(request.url))) {
+			String heartHTML = "<body id=Z onload=setInterval('with(Math)for(R=0;J=abs(o-u%360),i=sqrt((o-J)*J),a=u/o*PI,n=J<90?270-i:i+i,u<480?Z.innerHTML+=\"<a\\76o\":R<27;u+=R%9?R%9:81)with(Z.childNodes[R++].style)position=\"fixed\",color=\"red\",left=480+n*sin(a),top=o-n*cos(a)',o=u=180)>";
+			HttpWorkerUtils.pipeOutCached(request, response, "text/html", "UTF-8", heartHTML, 86400000 * 365 * 10); // Never expired
+			return true;
+		}
 		if (server.allFilters == null) {
 			return false;
 		}
@@ -761,19 +811,22 @@ public class HttpWorker implements Runnable, IPiledWorker {
 			HttpRequest next = null;
 			synchronized (mutex) {
 				// Discard any requests link in field prev.
-				if (req.prev != null) {
+				//if (req.prev != null) {
+					// Do NOT break down request chaining here. It will be done in parsing data
 					// break it down previous request chaining
-					req.prev.next = null;
-					req.prev = null;
-				}
+					//req.prev.next = null;
+					//req.prev = null;
+				//}
+				req.prev = null;
 				next = req.next;
-				if (next == null) {
-					req.mutex = null;
-				} else {
+				//if (next == null) {
+				//	req.mutex = null;
+				//} else {
+					// Do NOT break down request chaining here. It will be done in parsing data
 					// break it down following request chaining
-					req.next = null;
-					next.prev = null;
-				}
+					//req.next = null;
+					//next.prev = null;
+				//}
 				toResponse = next != null && next.fullRequest && !req.done;
 				req.done = true;
 			}

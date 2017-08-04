@@ -163,6 +163,13 @@ public class PiledConfig {
 	
 	public static int maxPipelineRequests = 8;
 	
+	/**
+	 * Support 256 bytes heart animation for URL "/heart", "/love" and "/<3".
+	 * Piled server will always send its beating heart to you forever. Piled server
+	 * always loves you forever.
+	 */
+	public static boolean support256BytesHeart = true;
+	
 	public static void update(Properties prop) {
 		ThreadPoolExecutorConfig wc = httpWorkerPool;
 		if (wc != null) {
