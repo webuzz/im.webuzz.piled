@@ -11,6 +11,7 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -550,8 +551,38 @@ public class HttpWorker implements Runnable, IPiledWorker {
 	
 	private boolean passThroughFilters(HttpRequest request, HttpResponse response) {
 		if (PiledConfig.support256BytesHeart && ("/heart".equals(request.url) || "/love".equals(request.url) || "/<3".equals(request.url))) {
-			String heartHTML = "<body id=Z onload=setInterval('with(Math)for(R=0;J=abs(o-u%360),i=sqrt((o-J)*J),a=u/o*PI,n=J<90?270-i:i+i,u<480?Z.innerHTML+=\"<a\\76o\":R<27;u+=R%9?R%9:81)with(Z.childNodes[R++].style)position=\"fixed\",color=\"red\",left=480+n*sin(a),top=o-n*cos(a)',o=u=180)>";
-			HttpWorkerUtils.pipeOutCached(request, response, "text/html", "UTF-8", heartHTML, 86400000 * 365 * 10); // Never expired
+			HttpWorkerUtils.pipeOutCached(request, response, "text/html", "UTF-8",
+					//"<body id=Z onload=setInterval('with(Math)for(R=0;J=abs(o-u%360),i=sqrt((o-J)*J),a=u/o*PI,n=J<90?270-i:i+i,u<531?Z.innerHTML+=\"<a\\76o\":R<27;u+=R%9?R%9:81)with(Z.children[R++].style)position=\"absolute\",color=\"red\",left=480+n*sin(a),top=o-n*cos(a)',o=u=180)>", // support IE6 but slow
+					"<body id=Z onload=setInterval('with(Math)for(R=0;J=abs(o-u%360),i=sqrt((o-J)*J),a=u/o*PI,n=J<90?270-i:i+i,u<423?Z.innerHTML+=\"<a\\76o\":R<27;u+=R%9?R%9:81)with(Z.children[R++].style)position=\"fixed\",color=\"red\",left=480+n*sin(a),top=o-n*cos(a)',u=72),o=180>", // IE7+, smooth
+					86400000 * 365 * 10); // Never expired
+			return true;
+		}
+		String serverSecret = PiledConfig.stoppingServerSecret;
+		Set<String> trustedHosts = PiledConfig.serverTrustedHosts;
+		if (serverSecret != null && serverSecret.length() > 8
+				&& (trustedHosts == null || trustedHosts.contains(request.remoteIP) || "127.0.0.1".equals(request.remoteIP))
+				&& request.url != null && request.url.startsWith("/stop/" + serverSecret)) {
+			HttpWorkerUtils.pipeOut(request, response, "text/html", "UTF-8", "<body>Server is stopping...</body>", false);
+			System.out.println("Stopping server request received at " + new Date() + ".");
+			Thread t = new Thread() {
+				public void run() {
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					HttpLoggingUtils.stopLogging();
+					IPiledServer[] allServers = server.getAllServers();
+					if (allServers != null) {
+						for (IPiledServer s : allServers) {
+							s.stop();
+						}
+					}
+					//server.stop();
+				};
+			};
+			t.setDaemon(true);
+			t.start();
 			return true;
 		}
 		if (server.allFilters == null) {

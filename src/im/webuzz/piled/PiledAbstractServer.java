@@ -171,8 +171,8 @@ public abstract class PiledAbstractServer implements IPiledServer {
 			}
 		}
 		System.out.println("[!!!!!!!!!!!!!!!]");
-		System.out.println("[***************]");
 		System.out.println("Server is closing down!");
+		System.out.println("[***************]");
 		serverChannel.close();
 	}
 

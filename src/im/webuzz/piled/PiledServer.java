@@ -49,7 +49,7 @@ public class PiledServer extends PiledAbstractServer {
 			int count = workers.length;
 			for (int i = 0; i < count; i++) {
 				SimpleThreadPoolExecutor executor =  new SimpleThreadPoolExecutor(wc,
-				                new SimpleNamedThreadFactory("HTTP Service Worker" + (count == 1 ? "" : "-" + (i + 1))));
+							new SimpleNamedThreadFactory((wc.workerName == null || wc.workerName.length() == 0 ? "HTTP Service Worker" : wc.workerName) + (count == 1 ? "" : "-" + (i + 1))));
 				executor.allowCoreThreadTimeOut(wc.threadTimeout);
 				this.workers[i].bindingServer(this, executor);
 			}

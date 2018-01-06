@@ -8,6 +8,7 @@
 package im.webuzz.piled;
 
 import java.util.Properties;
+import java.util.Set;
 
 import im.webuzz.threadpool.ThreadPoolExecutorConfig;
 
@@ -169,6 +170,16 @@ public class PiledConfig {
 	 */
 	public static boolean support256BytesHeart = true;
 	
+	/**
+	 * Allow sending a request to stop server, if stoppingServerSecret is not null and 8+ length long.
+	 */
+	public static String stoppingServerSecret = null;
+	
+	/**
+	 * This trusted host can make high risk operations. 
+	 */
+	public static Set<String> serverTrustedHosts = null;
+
 	public static void update(Properties prop) {
 		ThreadPoolExecutorConfig wc = httpWorkerPool;
 		if (wc != null) {
