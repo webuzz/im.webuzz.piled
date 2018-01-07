@@ -334,6 +334,10 @@ public class HttpWorker implements Runnable, IPiledWorker {
 						next.remoteIP = request.remoteIP;
 						next.created = System.currentTimeMillis();
 						next.socket = request.socket;
+						next.pending = request.pending;
+						next.dataLength = request.dataLength;
+						request.pending = null;
+						request.dataLength = 0;
 						
 						if (mutex == null) {
 							mutex = new Object();
