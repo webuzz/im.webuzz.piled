@@ -7,8 +7,10 @@
 
 package im.webuzz.piled;
 
+import java.util.Collections;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.threadpool.ThreadPoolExecutorConfig;
 
@@ -169,6 +171,15 @@ public class PiledConfig {
 	 * Piled server always shows its beating heart to you and loves you forever.
 	 */
 	public static boolean support256BytesHeart = true;
+	
+	public static Set<String> heart256URLs = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+	
+	static {
+		heart256URLs.add("/heart");
+		heart256URLs.add("/heartbeat");
+		heart256URLs.add("/love");
+		heart256URLs.add("/<3");
+	}
 	
 	/**
 	 * Allow sending a request to stop server, if stoppingServerSecret is not null and 8+ length long.

@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
+//import im.webuzz.threadpool.ThreadPoolExecutor;
 
 import im.webuzz.pilet.HttpConfig;
 import im.webuzz.pilet.HttpLoggingUtils;
@@ -409,7 +410,7 @@ public class HttpWorker implements Runnable, IPiledWorker {
 				response.socket = dataEvent.socket;
 				response.worker = dataEvent.worker;
 				HttpWorkerUtils.send400Response(request, response);
-				HttpLoggingUtils.addLogging(request.host, request, 400, 0);
+				HttpLoggingUtils.addLogging(request.host, request, response, null, 400, 0);
 				continue;
 			}
 			if (resp.code == 100) {
@@ -434,7 +435,7 @@ public class HttpWorker implements Runnable, IPiledWorker {
 					break;
 				}
 				HttpWorkerUtils.sendXXXResponse(request, response, resp.code + " " + responseText, null, true);
-				HttpLoggingUtils.addLogging(request.host, request, 400, 0);
+				HttpLoggingUtils.addLogging(request.host, request, response, null, 400, 0);
 				continue;
 			}
 			request.fullRequest = true;
@@ -554,12 +555,15 @@ public class HttpWorker implements Runnable, IPiledWorker {
 	}
 	
 	private boolean passThroughFilters(HttpRequest request, HttpResponse response) {
-		if (PiledConfig.support256BytesHeart && ("/heart".equals(request.url) || "/love".equals(request.url) || "/<3".equals(request.url))) {
-			HttpWorkerUtils.pipeOutCached(request, response, "text/html", "UTF-8",
-					//"<body id=Z onload=setInterval('with(Math)for(R=0;J=abs(o-u%360),i=sqrt((o-J)*J),a=u/o*PI,n=J<90?270-i:i+i,u<531?Z.innerHTML+=\"<a\\76o\":R<27;u+=R%9?R%9:81)with(Z.children[R++].style)position=\"absolute\",color=\"red\",left=480+n*sin(a),top=o-n*cos(a)',o=u=180)>", // support IE6 but slow
-					"<body id=Z onload=setInterval('with(Math)for(R=0;J=abs(o-u%360),i=sqrt((o-J)*J),a=u/o*PI,n=J<90?270-i:i+i,u<423?Z.innerHTML+=\"<a\\76o\":R<27;u+=R%9?R%9:81)with(Z.children[R++].style)position=\"fixed\",color=\"red\",left=480+n*sin(a),top=o-n*cos(a)',u=72),o=180>", // IE7+, smooth
-					86400000 * 365 * 10); // Never expired
-			return true;
+		if (PiledConfig.support256BytesHeart && request.url != null) {
+			Set<String> urls = PiledConfig.heart256URLs;
+			if (urls != null && urls.contains(request.url)) {
+				HttpWorkerUtils.pipeOutCached(request, response, "text/html", "UTF-8",
+						//"<body id=Z onload=setInterval('h=180;with(Math)for(o=0;u=abs(h-R%360),e=sqrt((h-u)*u),n=u<90?270-e:e+e,R<423?Z.innerHTML+=\"<a\\76o\":o<27;R+=o%9?o%9:73)with(Z.children[o++].style)position=\"absolute\",color=\"red\",left=480+n*sin(J=R/h*PI),top=h-n*cos(J)',R=72)>", // support IE6 but slow
+						"<body id=Z onload=setInterval('h=180;with(Math)for(o=0;u=abs(h-R%360),e=sqrt((h-u)*u),n=u<90?270-e:e+e,R<423?Z.innerHTML+=\"<a\\76o\":o<27;R+=o%9?1+o%9:73)with(Z.children[o++].style)position=\"fixed\",color=\"red\",left=480+n*sin(J=R/h*PI),top=h-n*cos(J)',R=72)>", // IE7+, smooth
+						86400000 * 365 * 10); // Never expired
+				return true;
+			}
 		}
 		String serverSecret = PiledConfig.stoppingServerSecret;
 		Set<String> trustedHosts = PiledConfig.serverTrustedHosts;
@@ -626,7 +630,7 @@ public class HttpWorker implements Runnable, IPiledWorker {
 				} catch (Throwable e) {
 					e.printStackTrace();
 					HttpWorkerUtils.send500Response(req, rsp);
-					HttpLoggingUtils.addLogging(req.host, req, 500, 0);
+					HttpLoggingUtils.addLogging(req.host, req, rsp, null, 500, 0);
 					responsed = true;
 					break;
 				}
@@ -647,13 +651,13 @@ public class HttpWorker implements Runnable, IPiledWorker {
 			} catch (Throwable e) {
 				e.printStackTrace();
 				HttpWorkerUtils.send500Response(req, rsp);
-				HttpLoggingUtils.addLogging(req.host, req, 500, 0);
+				HttpLoggingUtils.addLogging(req.host, req, rsp, null, 500, 0);
 				responsed = true;
 			}
 		}
 		if (!responsed) {
 			HttpWorkerUtils.send404NotFound(req, rsp);
-			HttpLoggingUtils.addLogging(req.host, req, 404, 0);
+			HttpLoggingUtils.addLogging(req.host, req, rsp, null, 404, 0);
 		}
 	}
 	
@@ -699,7 +703,7 @@ public class HttpWorker implements Runnable, IPiledWorker {
 							} catch (Throwable e) {
 								e.printStackTrace();
 								HttpWorkerUtils.send500Response(req, rsp);
-								HttpLoggingUtils.addLogging(req.host, req, 500, 0);
+								HttpLoggingUtils.addLogging(req.host, req, rsp, null, 500, 0);
 								responsed = true;
 							}
 							if (!responsed) {
@@ -713,7 +717,7 @@ public class HttpWorker implements Runnable, IPiledWorker {
 				} catch (Throwable e) {
 					e.printStackTrace();
 					HttpWorkerUtils.send500Response(req, rsp);
-					HttpLoggingUtils.addLogging(req.host, req, 500, 0);
+					HttpLoggingUtils.addLogging(req.host, req, rsp, null, 500, 0);
 					chainingRequest(req, rsp);
 				}
 				return;
@@ -722,13 +726,13 @@ public class HttpWorker implements Runnable, IPiledWorker {
 		HttpQuickResponse resp = request.response;
 		if (resp == null) {
 			HttpWorkerUtils.send404NotFound(request, response);
-			HttpLoggingUtils.addLogging(request.host, request, 404, 0);
+			HttpLoggingUtils.addLogging(request.host, request, response, null, 404, 0);
 			chainingRequest(request, response);
 			return;
 		}
 		if (resp.code == 200) {
 			//request.created = System.currentTimeMillis();
-			if (((resp.contentType == null || resp.content == null) && request.requestData == null)
+			if (((resp.contentType == null || resp.content == null) && request.requestQuery == null && request.requestBody == null)
 					|| (!"GET".equals(request.method) && !"POST".equals(request.method))) {
 				if (passThroughFilters(request, response)) {
 					chainingRequest(request, response);
@@ -748,10 +752,10 @@ public class HttpWorker implements Runnable, IPiledWorker {
 				} catch (Throwable e) {
 					e.printStackTrace();
 					HttpWorkerUtils.send500Response(req, rsp);
-					HttpLoggingUtils.addLogging(req.host, req, 500, 0);
+					HttpLoggingUtils.addLogging(req.host, req, rsp, null, 500, 0);
 					chainingRequest(req, rsp);
 				}
-			} else if (request.requestData != null) {
+			} else if (request.requestQuery != null || request.requestBody != null) {
 				if (passThroughFilters(request, response)) {
 					chainingRequest(request, response);
 					return;
@@ -771,7 +775,7 @@ public class HttpWorker implements Runnable, IPiledWorker {
 				} catch (Throwable e) {
 					e.printStackTrace();
 					HttpWorkerUtils.send500Response(req, rsp);
-					HttpLoggingUtils.addLogging(req.host, req, 500, 0);
+					HttpLoggingUtils.addLogging(req.host, req, rsp, null, 500, 0);
 					chainingRequest(req, rsp);
 				}
 			} else { // Simple RPC or Simple Pipe output, already in ascii-127 format
@@ -784,7 +788,7 @@ public class HttpWorker implements Runnable, IPiledWorker {
 				if (request.requestCount < 1 && serverName != null && serverName.length() > 0) {
 					responseBuilder.append("Server: ").append(serverName).append("\r\n");
 				}
-				boolean closeSocket = HttpWorkerUtils.checkKeepAliveHeader(request, responseBuilder);
+				boolean closeSocket = HttpWorkerUtils.checkKeepAliveHeader(request, responseBuilder, response.worker.getServer().isSSLEnabled());
 				byte[] bytes = resp.content.getBytes();
 				int length = bytes.length;
 				boolean toGZip = length > HttpConfig.gzipStartingSize && request.supportGZip && HttpWorkerUtils.isUserAgentSupportGZip(request.userAgent);
@@ -819,7 +823,7 @@ public class HttpWorker implements Runnable, IPiledWorker {
 //			System.out.println("Response: " + request.url);
 			
 			HttpWorkerUtils.send400Response(request, response);
-			HttpLoggingUtils.addLogging(request.host, request, 400, 0);
+			HttpLoggingUtils.addLogging(request.host, request, response, null, 400, 0);
 			chainingRequest(request, response);
 		//} else { // other resp.code ?...
 			//System.out.println("Not supported");

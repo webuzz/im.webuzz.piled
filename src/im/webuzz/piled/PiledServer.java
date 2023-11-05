@@ -27,7 +27,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.List;
+//import java.util.List;
+import java.util.Queue;
 
 public class PiledServer extends PiledAbstractServer {
 
@@ -77,7 +78,7 @@ public class PiledServer extends PiledAbstractServer {
 
 		// Register the new SocketChannel with our Selector, indicating
 		// we'd like to be notified when there's data waiting to be read
-		socketChannel.register(this.selector, SelectionKey.OP_READ, new Long(System.currentTimeMillis()));
+		socketChannel.register(this.selector, SelectionKey.OP_READ, Long.valueOf(System.currentTimeMillis()));
 		//System.out.println("[*]+ Registering socket 1 " + socketChannel);
 	}
 
@@ -93,7 +94,7 @@ public class PiledServer extends PiledAbstractServer {
 			numRead = socketChannel.read(this.readBuffer);
 		} catch (IOException e) {
 			String message = e.getMessage();
-			if (message.indexOf("Connection reset by peer") == -1
+			if (message.indexOf("Connection reset") == -1
 					&& message.indexOf("Connection timed out") == -1
 					&& message.indexOf("Broken pipe") == -1
 					&& message.indexOf("closed by the remote host") == -1
@@ -120,7 +121,7 @@ public class PiledServer extends PiledAbstractServer {
 	protected void write(SelectionKey key) throws IOException {
 		SocketChannel socketChannel = (SocketChannel) key.channel();
 
-		List<ByteBuffer> queue = (List<ByteBuffer>) this.pendingData.get(socketChannel);
+		Queue<ByteBuffer> queue = (Queue<ByteBuffer>) this.pendingData.get(socketChannel);
 		if (queue == null) {
 			key.interestOps(SelectionKey.OP_READ);
 			return;
@@ -130,10 +131,10 @@ public class PiledServer extends PiledAbstractServer {
 		int totalWritten = 0;
 		// Write until there's no more data ...
 		while (!queue.isEmpty()) {
-			ByteBuffer buf = (ByteBuffer) queue.get(0);
+			ByteBuffer buf = (ByteBuffer) queue.peek();
 			if (buf.capacity() == 0) {
 				pendingData.remove(socketChannel);
-				queue.remove(0);
+				queue.poll();
 				closeChannel(key, socketChannel, true);
 				// Not notify any data written back to request
 				return;
@@ -145,7 +146,7 @@ public class PiledServer extends PiledAbstractServer {
 				}
 			} catch (Throwable e) {
 				String message = e.getMessage();
-				if (message.indexOf("Connection reset by peer") == -1
+				if (message.indexOf("Connection reset") == -1
 						&& message.indexOf("Connection timed out") == -1
 						&& message.indexOf("Broken pipe") == -1
 						&& message.indexOf("closed by the remote host") == -1
@@ -154,7 +155,7 @@ public class PiledServer extends PiledAbstractServer {
 						&& message.indexOf("connection was forcibly closed") == -1) {
 					e.printStackTrace();
 				}
-				queue.remove(0);
+				queue.poll();
 				closeChannel(key, socketChannel, false);
 				// Not notify any data written back to request
 				return;
@@ -164,7 +165,7 @@ public class PiledServer extends PiledAbstractServer {
 				filled = true;
 				break;
 			}
-			queue.remove(0);
+			queue.poll();
 		}
 		if (totalWritten > 0) {
 			workers[socketChannel.hashCode() % this.workers.length].processData(socketChannel,
@@ -236,26 +237,20 @@ public class PiledServer extends PiledAbstractServer {
 					if (initMethod != null && (initMethod.getModifiers() & Modifier.STATIC) != 0) {
 						initMethod.invoke(clazz);
 					}
-				} catch (SecurityException e) {
-					e.printStackTrace();
-				} catch (IllegalArgumentException e) {
-					e.printStackTrace();
-				} catch (NoSuchMethodException e) {
-					e.printStackTrace();
-				} catch (InvocationTargetException e) {
+				} catch (Exception e) {
 					e.printStackTrace();
 				}
 				if (clazz != null && HttpWorker.class.isAssignableFrom(clazz)) {
 					for (int i = 0; i < workers.length; i++) {
-						workers[i] = (HttpWorker) clazz.newInstance();
+						try {
+							workers[i] = (HttpWorker) clazz.getDeclaredConstructor().newInstance();
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
 					}
 					created = true;
 				}
 			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
-			} catch (InstantiationException e) {
-				e.printStackTrace();
-			} catch (IllegalAccessException e) {
 				e.printStackTrace();
 			}
 		}

@@ -61,7 +61,7 @@ public abstract class PiledAbstractServer implements IPiledServer {
 	Queue<ChangeRequest> pendingChanges = new ConcurrentLinkedQueue<ChangeRequest>();
 
 	// Maps a SocketChannel to a list of ByteBuffer instances
-	Map<SocketChannel, List<ByteBuffer>> pendingData = null;
+	Map<SocketChannel, Queue<ByteBuffer>> pendingData = null;
 
 	private Set<SelectionKey> lostKeys2m;
 	
@@ -91,7 +91,7 @@ public abstract class PiledAbstractServer implements IPiledServer {
 		this.hostAddress = hostAddress;
 		this.port = port;
 		this.sslEnabled = sslEnabled;
-		this.pendingData = new HashMap<SocketChannel, List<ByteBuffer>>();
+		this.pendingData = new HashMap<SocketChannel, Queue<ByteBuffer>>();
 		String staticResoucePilet = PiledConfig.staticResoucePilet;
 		if (staticResoucePilet != null && staticResoucePilet.length() > 0) {
 			try {
@@ -191,7 +191,7 @@ public abstract class PiledAbstractServer implements IPiledServer {
 					key = change.socket.keyFor(this.selector);
 					if (change.data != null) {
 						// And queue the data we want written
-						List<ByteBuffer> queue = (List<ByteBuffer>) this.pendingData.get(change.socket);
+						Queue<ByteBuffer> queue = (Queue<ByteBuffer>) this.pendingData.get(change.socket);
 						if (change.data.remaining() == 0 && change.ops == SelectionKey.OP_WRITE
 								&& (queue == null || queue.isEmpty())) {
 							// to close socket
@@ -199,7 +199,8 @@ public abstract class PiledAbstractServer implements IPiledServer {
 							break;
 						}
 						if (queue == null) {
-							queue = new LinkedList<ByteBuffer>();
+							//queue = new LinkedList<ByteBuffer>();
+							queue = new ConcurrentLinkedQueue<ByteBuffer>();
 							this.pendingData.put(change.socket, queue);
 						}
 						queue.add(change.data);
@@ -878,7 +879,7 @@ public abstract class PiledAbstractServer implements IPiledServer {
 				runnableClass = Class.forName(clazzName);
 			}
 			if (runnableClass != null) {
-				return runnableClass.newInstance();
+				return runnableClass.getDeclaredConstructor().newInstance();
 			}
 		} catch (Exception e) {
 			//e.printStackTrace();
